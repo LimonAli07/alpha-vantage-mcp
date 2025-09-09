@@ -1,16 +1,34 @@
 """
-Alpha Vantage MCP Tools Module
+Multi-Source Financial Data MCP Tools Module
 
-This module contains utility functions for making requests to the Alpha Vantage API
+This module contains utility functions for making requests to various financial APIs
 and formatting the responses.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 import httpx
 import os
+import json
+import re
+from datetime import datetime, timedelta
 
+# API Base URLs
 ALPHA_VANTAGE_BASE = "https://www.alphavantage.co/query"
+YAHOO_FINANCE_BASE = "https://query1.finance.yahoo.com"
+EODHD_BASE = "https://eodhd.com/api"
+FINHUB_BASE = "https://finnhub.io/api/v1"
+REUTERS_BASE = "https://api.reuters.com/v1"
+
+# API Keys from environment variables
 API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY')
+YAHOO_FINANCE_API_KEY = os.getenv('YAHOO_FINANCE_API_KEY')  # Optional for some endpoints
+EODHD_API_KEY = os.getenv('EODHD_API_KEY')
+FINHUB_API_KEY = os.getenv('FINHUB_API_KEY')
+TWITTER_BEARER_TOKEN = os.getenv('TWITTER_BEARER_TOKEN')
+REDDIT_CLIENT_ID = os.getenv('REDDIT_CLIENT_ID')
+REDDIT_CLIENT_SECRET = os.getenv('REDDIT_CLIENT_SECRET')
+BLOOMBERG_API_KEY = os.getenv('BLOOMBERG_API_KEY')
+REUTERS_API_KEY = os.getenv('REUTERS_API_KEY')
 
 async def make_alpha_request(client: httpx.AsyncClient, function: str, symbol: Optional[str], additional_params: Optional[Dict[str, Any]] = None) -> Dict[str, Any] | str:
     """Make a request to the Alpha Vantage API with proper error handling.
@@ -67,6 +85,198 @@ async def make_alpha_request(client: httpx.AsyncClient, function: str, symbol: O
         return f"HTTP error occurred: {str(e)} - Response: {e.response.text}"
     except Exception as e:
         return f"Unexpected error occurred: {str(e)}"
+
+
+# Yahoo Finance API Functions
+async def make_yahoo_request(client: httpx.AsyncClient, endpoint: str, symbol: str, additional_params: Optional[Dict[str, Any]] = None) -> Dict[str, Any] | str:
+    """Make a request to the Yahoo Finance API.
+    
+    Args:
+        client: An httpx AsyncClient instance
+        endpoint: The Yahoo Finance API endpoint
+        symbol: The stock symbol
+        additional_params: Additional parameters
+        
+    Returns:
+        Either a dictionary containing the API response, or a string with an error message
+    """
+    if endpoint == "quote":
+        url = f"{YAHOO_FINANCE_BASE}/v8/finance/chart/{symbol}"
+        params = {"interval": "1d", "range": "1d"}
+    elif endpoint == "news":
+        url = f"{YAHOO_FINANCE_BASE}/v1/finance/search"
+        params = {"q": symbol, "newsCount": 10}
+    else:
+        return f"Unknown Yahoo Finance endpoint: {endpoint}"
+    
+    if additional_params:
+        params.update(additional_params)
+
+    try:
+        response = await client.get(url, params=params, timeout=30.0)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        return f"Yahoo Finance API error: {str(e)}"
+
+
+# EODHD API Functions
+async def make_eodhd_request(client: httpx.AsyncClient, endpoint: str, symbol: Optional[str] = None, additional_params: Optional[Dict[str, Any]] = None) -> Dict[str, Any] | str:
+    """Make a request to the EODHD API.
+    
+    Args:
+        client: An httpx AsyncClient instance
+        endpoint: The EODHD API endpoint
+        symbol: The stock symbol (optional for some endpoints)
+        additional_params: Additional parameters
+        
+    Returns:
+        Either a dictionary containing the API response, or a string with an error message
+    """
+    if not EODHD_API_KEY:
+        return "EODHD API key not found. Please set EODHD_API_KEY environment variable."
+    
+    if endpoint == "eod":
+        url = f"{EODHD_BASE}/eod/{symbol}"
+    elif endpoint == "fundamentals":
+        url = f"{EODHD_BASE}/fundamentals/{symbol}"
+    elif endpoint == "insider-transactions":
+        url = f"{EODHD_BASE}/insider-transactions"
+    elif endpoint == "sentiment":
+        url = f"{EODHD_BASE}/sentiments"
+    else:
+        return f"Unknown EODHD endpoint: {endpoint}"
+    
+    params = {"api_token": EODHD_API_KEY, "fmt": "json"}
+    if additional_params:
+        params.update(additional_params)
+
+    try:
+        response = await client.get(url, params=params, timeout=30.0)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        return f"EODHD API error: {str(e)}"
+
+
+# FinHub API Functions
+async def make_finhub_request(client: httpx.AsyncClient, endpoint: str, symbol: Optional[str] = None, additional_params: Optional[Dict[str, Any]] = None) -> Dict[str, Any] | str:
+    """Make a request to the FinHub API.
+    
+    Args:
+        client: An httpx AsyncClient instance
+        endpoint: The FinHub API endpoint
+        symbol: The stock symbol (optional for some endpoints)
+        additional_params: Additional parameters
+        
+    Returns:
+        Either a dictionary containing the API response, or a string with an error message
+    """
+    if not FINHUB_API_KEY:
+        return "FinHub API key not found. Please set FINHUB_API_KEY environment variable."
+    
+    if endpoint == "company-news":
+        url = f"{FINHUB_BASE}/company-news"
+        params = {"symbol": symbol, "token": FINHUB_API_KEY}
+        # Add date range for recent news
+        to_date = datetime.now().strftime("%Y-%m-%d")
+        from_date = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+        params.update({"from": from_date, "to": to_date})
+    elif endpoint == "market-news":
+        url = f"{FINHUB_BASE}/news"
+        params = {"category": "general", "token": FINHUB_API_KEY}
+    elif endpoint == "sentiment":
+        url = f"{FINHUB_BASE}/news-sentiment"
+        params = {"symbol": symbol, "token": FINHUB_API_KEY}
+    else:
+        return f"Unknown FinHub endpoint: {endpoint}"
+    
+    if additional_params:
+        params.update(additional_params)
+
+    try:
+        response = await client.get(url, params=params, timeout=30.0)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        return f"FinHub API error: {str(e)}"
+
+
+# Social Media API Functions
+async def get_reddit_sentiment(client: httpx.AsyncClient, symbol: str) -> Dict[str, Any] | str:
+    """Get Reddit sentiment for a stock symbol.
+    
+    Args:
+        client: An httpx AsyncClient instance
+        symbol: The stock symbol
+        
+    Returns:
+        Either a dictionary containing Reddit data, or a string with an error message
+    """
+    try:
+        # Search for stock mentions in popular finance subreddits
+        subreddits = ["stocks", "investing", "wallstreetbets", "SecurityAnalysis", "ValueInvesting"]
+        url = f"https://www.reddit.com/r/{'+'.join(subreddits)}/search.json"
+        params = {
+            "q": f"${symbol}",
+            "limit": 25,
+            "sort": "hot",
+            "t": "week"
+        }
+        
+        headers = {"User-Agent": "AlphaVantage-MCP/1.0"}
+        response = await client.get(url, params=params, headers=headers, timeout=30.0)
+        response.raise_for_status()
+        
+        data = response.json()
+        posts = []
+        
+        for post in data.get("data", {}).get("children", []):
+            post_data = post.get("data", {})
+            posts.append({
+                "title": post_data.get("title", ""),
+                "score": post_data.get("score", 0),
+                "num_comments": post_data.get("num_comments", 0),
+                "subreddit": post_data.get("subreddit", ""),
+                "created": post_data.get("created_utc", 0),
+                "url": post_data.get("url", "")
+            })
+        
+        return {"posts": posts, "total_posts": len(posts)}
+        
+    except Exception as e:
+        return f"Reddit API error: {str(e)}"
+
+
+async def get_twitter_sentiment(client: httpx.AsyncClient, symbol: str) -> Dict[str, Any] | str:
+    """Get Twitter sentiment for a stock symbol.
+    
+    Args:
+        client: An httpx AsyncClient instance
+        symbol: The stock symbol
+        
+    Returns:
+        Either a dictionary containing Twitter data, or a string with an error message
+    """
+    if not TWITTER_BEARER_TOKEN:
+        return "Twitter Bearer Token not found. Please set TWITTER_BEARER_TOKEN environment variable."
+    
+    try:
+        url = "https://api.twitter.com/2/tweets/search/recent"
+        params = {
+            "query": f"${symbol} OR #{symbol}",
+            "max_results": 100,
+            "tweet.fields": "created_at,public_metrics,context_annotations"
+        }
+        
+        headers = {"Authorization": f"Bearer {TWITTER_BEARER_TOKEN}"}
+        response = await client.get(url, params=params, headers=headers, timeout=30.0)
+        response.raise_for_status()
+        
+        return response.json()
+        
+    except Exception as e:
+        return f"Twitter API error: {str(e)}"
 
 
 def format_quote(quote_data: Dict[str, Any]) -> str:
@@ -332,3 +542,173 @@ def format_historical_options(options_data: Dict[str, Any], limit: int = 10, sor
         return "".join(formatted)
     except Exception as e:
         return f"Error formatting options data: {str(e)}"
+
+
+# Formatting functions for new APIs
+
+def format_yahoo_quote(data: Dict[str, Any]) -> str:
+    """Format Yahoo Finance quote data."""
+    try:
+        chart = data.get("chart", {})
+        if not chart or "result" not in chart or not chart["result"]:
+            return "No Yahoo Finance data available"
+        
+        result = chart["result"][0]
+        meta = result.get("meta", {})
+        
+        return (
+            f"Yahoo Finance Data:\n"
+            f"Symbol: {meta.get('symbol', 'N/A')}\n"
+            f"Price: ${meta.get('regularMarketPrice', 'N/A')}\n"
+            f"Previous Close: ${meta.get('previousClose', 'N/A')}\n"
+            f"Volume: {meta.get('regularMarketVolume', 'N/A')}\n"
+            f"Market Cap: {meta.get('marketCap', 'N/A')}\n"
+            f"Currency: {meta.get('currency', 'N/A')}\n"
+            "---"
+        )
+    except Exception as e:
+        return f"Error formatting Yahoo Finance data: {str(e)}"
+
+
+def format_eodhd_fundamentals(data: Dict[str, Any]) -> str:
+    """Format EODHD fundamentals data."""
+    try:
+        if isinstance(data, str):
+            return data
+        
+        general = data.get("General", {})
+        highlights = data.get("Highlights", {})
+        valuation = data.get("Valuation", {})
+        
+        return (
+            f"EODHD Fundamentals:\n"
+            f"Company: {general.get('Name', 'N/A')}\n"
+            f"Sector: {general.get('Sector', 'N/A')}\n"
+            f"Industry: {general.get('Industry', 'N/A')}\n"
+            f"Market Cap: ${highlights.get('MarketCapitalization', 'N/A')}\n"
+            f"P/E Ratio: {valuation.get('TrailingPE', 'N/A')}\n"
+            f"EPS: ${highlights.get('EarningsShare', 'N/A')}\n"
+            f"Revenue: ${highlights.get('RevenueTTM', 'N/A')}\n"
+            "---"
+        )
+    except Exception as e:
+        return f"Error formatting EODHD fundamentals: {str(e)}"
+
+
+def format_insider_transactions(data: List[Dict[str, Any]] | str) -> str:
+    """Format insider transactions data."""
+    try:
+        if isinstance(data, str):
+            return data
+        
+        if not data or not isinstance(data, list):
+            return "No insider transaction data available"
+        
+        formatted = ["Recent Insider Transactions:\n"]
+        
+        for transaction in data[:10]:  # Show last 10 transactions
+            formatted.append(
+                f"Date: {transaction.get('date', 'N/A')}\n"
+                f"Name: {transaction.get('fullName', 'N/A')}\n"
+                f"Position: {transaction.get('position', 'N/A')}\n"
+                f"Transaction: {transaction.get('transactionType', 'N/A')}\n"
+                f"Shares: {transaction.get('sharesTransacted', 'N/A')}\n"
+                f"Price: ${transaction.get('price', 'N/A')}\n"
+                "---\n"
+            )
+        
+        return "".join(formatted)
+    except Exception as e:
+        return f"Error formatting insider transactions: {str(e)}"
+
+
+def format_news_data(data: List[Dict[str, Any]] | str, source: str = "FinHub") -> str:
+    """Format news data from various sources."""
+    try:
+        if isinstance(data, str):
+            return data
+        
+        if not data or not isinstance(data, list):
+            return f"No {source} news data available"
+        
+        formatted = [f"{source} Financial News:\n"]
+        
+        for article in data[:10]:  # Show last 10 articles
+            formatted.append(
+                f"Headline: {article.get('headline', article.get('title', 'N/A'))}\n"
+                f"Summary: {article.get('summary', article.get('description', 'N/A'))[:200]}...\n"
+                f"Source: {article.get('source', 'N/A')}\n"
+                f"URL: {article.get('url', 'N/A')}\n"
+                f"Date: {datetime.fromtimestamp(article.get('datetime', 0)).strftime('%Y-%m-%d %H:%M:%S') if article.get('datetime') else 'N/A'}\n"
+                "---\n"
+            )
+        
+        return "".join(formatted)
+    except Exception as e:
+        return f"Error formatting {source} news data: {str(e)}"
+
+
+def format_reddit_sentiment(data: Dict[str, Any] | str) -> str:
+    """Format Reddit sentiment data."""
+    try:
+        if isinstance(data, str):
+            return data
+        
+        posts = data.get("posts", [])
+        if not posts:
+            return "No Reddit discussions found for this symbol"
+        
+        formatted = [f"Reddit Sentiment Analysis:\n"]
+        formatted.append(f"Total Posts Found: {data.get('total_posts', 0)}\n\n")
+        
+        # Calculate basic sentiment metrics
+        total_score = sum(post.get("score", 0) for post in posts)
+        avg_score = total_score / len(posts) if posts else 0
+        
+        formatted.append(f"Average Post Score: {avg_score:.1f}\n")
+        formatted.append(f"Total Combined Score: {total_score}\n\n")
+        formatted.append("Recent Popular Posts:\n")
+        
+        # Sort by score and show top posts
+        sorted_posts = sorted(posts, key=lambda x: x.get("score", 0), reverse=True)
+        
+        for post in sorted_posts[:5]:
+            formatted.append(
+                f"Title: {post.get('title', 'N/A')[:100]}...\n"
+                f"Score: {post.get('score', 0)} | Comments: {post.get('num_comments', 0)}\n"
+                f"Subreddit: r/{post.get('subreddit', 'N/A')}\n"
+                "---\n"
+            )
+        
+        return "".join(formatted)
+    except Exception as e:
+        return f"Error formatting Reddit sentiment: {str(e)}"
+
+
+def format_twitter_sentiment(data: Dict[str, Any] | str) -> str:
+    """Format Twitter sentiment data."""
+    try:
+        if isinstance(data, str):
+            return data
+        
+        tweets = data.get("data", [])
+        if not tweets:
+            return "No Twitter mentions found for this symbol"
+        
+        formatted = [f"Twitter Sentiment Analysis:\n"]
+        formatted.append(f"Total Tweets Found: {len(tweets)}\n\n")
+        
+        formatted.append("Recent Tweets:\n")
+        
+        for tweet in tweets[:10]:
+            metrics = tweet.get("public_metrics", {})
+            formatted.append(
+                f"Tweet: {tweet.get('text', 'N/A')[:150]}...\n"
+                f"Likes: {metrics.get('like_count', 0)} | Retweets: {metrics.get('retweet_count', 0)}\n"
+                f"Date: {tweet.get('created_at', 'N/A')}\n"
+                "---\n"
+            )
+        
+        return "".join(formatted)
+    except Exception as e:
+        return f"Error formatting Twitter sentiment: {str(e)}"
