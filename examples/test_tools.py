@@ -5,6 +5,12 @@ Simple test script to verify new tool integration
 
 import asyncio
 import os
+import sys
+from pathlib import Path
+
+# Add the parent directory to the Python path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from src.alpha_vantage_mcp.server import handle_list_tools
 
 async def test_tools_list():

@@ -609,3 +609,11 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## License
 This MCP server is licensed under the MIT License. 
 This means you are free to use, modify, and distribute the software, subject to the terms and conditions of the MIT License. For more details, please see the LICENSE file in the project repository.
+
+## Trading Bot Integration
+
+This MCP server provides financial data and analysis but does not directly execute trades. For information on integrating with trading platforms like Trading 212 or Alpaca, see [TRADING_INTEGRATION.md](TRADING_INTEGRATION.md).
+
+## Disclaimer
+
+This software is for informational purposes only and does not constitute investment advice. Always conduct your own research and consider the risks before making investment decisions.
