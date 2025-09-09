@@ -10,12 +10,23 @@ import os
 # Import functions from tools.py
 from .tools import (
     make_alpha_request,
+    make_yahoo_request,
+    make_eodhd_request,
+    make_finhub_request,
+    get_reddit_sentiment,
+    get_twitter_sentiment,
     format_quote,
     format_company_info,
     format_crypto_rate,
     format_time_series,
     format_historical_options,
     format_crypto_time_series,
+    format_yahoo_quote,
+    format_eodhd_fundamentals,
+    format_insider_transactions,
+    format_news_data,
+    format_reddit_sentiment,
+    format_twitter_sentiment,
     ALPHA_VANTAGE_BASE,
     API_KEY
 )
@@ -203,6 +214,112 @@ async def handle_list_tools() -> list[types.Tool]:
                         "description": "Market currency (e.g., USD, EUR)",
                         "default": "USD"
                     }
+                },
+                "required": ["symbol"],
+            },
+        ),
+        types.Tool(
+            name="get-yahoo-quote",
+            description="Get stock quote from Yahoo Finance",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "Stock symbol (e.g., AAPL, MSFT)",
+                    },
+                },
+                "required": ["symbol"],
+            },
+        ),
+        types.Tool(
+            name="get-eodhd-fundamentals",
+            description="Get fundamental company data from EODHD",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "Stock symbol (e.g., AAPL.US, MSFT.US)",
+                    },
+                },
+                "required": ["symbol"],
+            },
+        ),
+        types.Tool(
+            name="get-insider-transactions",
+            description="Get insider trading transactions from EODHD",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "Stock symbol (e.g., AAPL.US, MSFT.US)",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Number of transactions to return (default: 50)",
+                        "default": 50,
+                        "minimum": 1,
+                        "maximum": 1000
+                    }
+                },
+                "required": ["symbol"],
+            },
+        ),
+        types.Tool(
+            name="get-company-news",
+            description="Get company-specific news from FinHub",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "Stock symbol (e.g., AAPL, MSFT)",
+                    },
+                },
+                "required": ["symbol"],
+            },
+        ),
+        types.Tool(
+            name="get-market-news",
+            description="Get general market news from FinHub",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "category": {
+                        "type": "string",
+                        "description": "News category",
+                        "enum": ["general", "forex", "crypto", "merger"],
+                        "default": "general"
+                    }
+                },
+            },
+        ),
+        types.Tool(
+            name="get-reddit-sentiment",
+            description="Get Reddit sentiment analysis for a stock symbol",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "Stock symbol (e.g., AAPL, MSFT)",
+                    },
+                },
+                "required": ["symbol"],
+            },
+        ),
+        types.Tool(
+            name="get-twitter-sentiment",
+            description="Get Twitter sentiment analysis for a stock symbol",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "symbol": {
+                        "type": "string",
+                        "description": "Stock symbol (e.g., AAPL, MSFT)",
+                    },
                 },
                 "required": ["symbol"],
             },
@@ -426,6 +543,145 @@ async def handle_call_tool(
 
             formatted_data = format_crypto_time_series(crypto_data, "monthly")
             data_text = f"Monthly cryptocurrency time series for {symbol} in {market}:\n\n{formatted_data}"
+
+            return [types.TextContent(type="text", text=data_text)]
+            
+    elif name == "get-yahoo-quote":
+        symbol = arguments.get("symbol")
+        if not symbol:
+            return [types.TextContent(type="text", text="Missing symbol parameter")]
+
+        symbol = symbol.upper()
+
+        async with httpx.AsyncClient() as client:
+            yahoo_data = await make_yahoo_request(client, "quote", symbol)
+
+            if isinstance(yahoo_data, str):
+                return [types.TextContent(type="text", text=f"Error: {yahoo_data}")]
+
+            formatted_data = format_yahoo_quote(yahoo_data)
+            data_text = f"Yahoo Finance quote for {symbol}:\n\n{formatted_data}"
+
+            return [types.TextContent(type="text", text=data_text)]
+            
+    elif name == "get-eodhd-fundamentals":
+        symbol = arguments.get("symbol")
+        if not symbol:
+            return [types.TextContent(type="text", text="Missing symbol parameter")]
+
+        # Ensure proper format for EODHD (e.g., AAPL.US)
+        if '.' not in symbol:
+            symbol = f"{symbol.upper()}.US"
+        else:
+            symbol = symbol.upper()
+
+        async with httpx.AsyncClient() as client:
+            fundamentals_data = await make_eodhd_request(client, "fundamentals", symbol)
+
+            if isinstance(fundamentals_data, str):
+                return [types.TextContent(type="text", text=f"Error: {fundamentals_data}")]
+
+            formatted_data = format_eodhd_fundamentals(fundamentals_data)
+            data_text = f"EODHD fundamentals for {symbol}:\n\n{formatted_data}"
+
+            return [types.TextContent(type="text", text=data_text)]
+            
+    elif name == "get-insider-transactions":
+        symbol = arguments.get("symbol")
+        limit = arguments.get("limit", 50)
+        if not symbol:
+            return [types.TextContent(type="text", text="Missing symbol parameter")]
+
+        # Ensure proper format for EODHD
+        if '.' not in symbol:
+            symbol = f"{symbol.upper()}.US"
+        else:
+            symbol = symbol.upper()
+
+        async with httpx.AsyncClient() as client:
+            insider_data = await make_eodhd_request(
+                client, 
+                "insider-transactions", 
+                additional_params={"code": symbol, "limit": limit}
+            )
+
+            if isinstance(insider_data, str):
+                return [types.TextContent(type="text", text=f"Error: {insider_data}")]
+
+            formatted_data = format_insider_transactions(insider_data)
+            data_text = f"Insider transactions for {symbol}:\n\n{formatted_data}"
+
+            return [types.TextContent(type="text", text=data_text)]
+            
+    elif name == "get-company-news":
+        symbol = arguments.get("symbol")
+        if not symbol:
+            return [types.TextContent(type="text", text="Missing symbol parameter")]
+
+        symbol = symbol.upper()
+
+        async with httpx.AsyncClient() as client:
+            news_data = await make_finhub_request(client, "company-news", symbol)
+
+            if isinstance(news_data, str):
+                return [types.TextContent(type="text", text=f"Error: {news_data}")]
+
+            formatted_data = format_news_data(news_data, "FinHub Company")
+            data_text = f"Company news for {symbol}:\n\n{formatted_data}"
+
+            return [types.TextContent(type="text", text=data_text)]
+            
+    elif name == "get-market-news":
+        category = arguments.get("category", "general")
+
+        async with httpx.AsyncClient() as client:
+            news_data = await make_finhub_request(
+                client, 
+                "market-news", 
+                additional_params={"category": category}
+            )
+
+            if isinstance(news_data, str):
+                return [types.TextContent(type="text", text=f"Error: {news_data}")]
+
+            formatted_data = format_news_data(news_data, "FinHub Market")
+            data_text = f"Market news ({category}):\n\n{formatted_data}"
+
+            return [types.TextContent(type="text", text=data_text)]
+            
+    elif name == "get-reddit-sentiment":
+        symbol = arguments.get("symbol")
+        if not symbol:
+            return [types.TextContent(type="text", text="Missing symbol parameter")]
+
+        symbol = symbol.upper()
+
+        async with httpx.AsyncClient() as client:
+            reddit_data = await get_reddit_sentiment(client, symbol)
+
+            if isinstance(reddit_data, str):
+                return [types.TextContent(type="text", text=f"Error: {reddit_data}")]
+
+            formatted_data = format_reddit_sentiment(reddit_data)
+            data_text = f"Reddit sentiment for {symbol}:\n\n{formatted_data}"
+
+            return [types.TextContent(type="text", text=data_text)]
+            
+    elif name == "get-twitter-sentiment":
+        symbol = arguments.get("symbol")
+        if not symbol:
+            return [types.TextContent(type="text", text="Missing symbol parameter")]
+
+        symbol = symbol.upper()
+
+        async with httpx.AsyncClient() as client:
+            twitter_data = await get_twitter_sentiment(client, symbol)
+
+            if isinstance(twitter_data, str):
+                return [types.TextContent(type="text", text=f"Error: {twitter_data}")]
+
+            formatted_data = format_twitter_sentiment(twitter_data)
+            data_text = f"Twitter sentiment for {symbol}:\n\n{formatted_data}"
 
             return [types.TextContent(type="text", text=data_text)]
     else:

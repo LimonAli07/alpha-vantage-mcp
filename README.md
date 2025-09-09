@@ -1,18 +1,42 @@
-# Alpha Vantage MCP Server
+# Multi-Source Financial Data MCP Server
 [![smithery badge](https://smithery.ai/badge/@berlinbra/alpha-vantage-mcp)](https://smithery.ai/server/@berlinbra/alpha-vantage-mcp)
 
-A Model Context Protocol (MCP) server that provides real-time access to financial market data through the free [Alpha Vantage API](https://www.alphavantage.co/documentation/). This server implements a standardized interface for retrieving stock quotes and company information.
+A comprehensive Model Context Protocol (MCP) server that provides real-time access to financial market data through multiple APIs including [Alpha Vantage](https://www.alphavantage.co/documentation/), Yahoo Finance, EODHD, FinHub, and social media sentiment analysis. This server implements a standardized interface for retrieving stock quotes, company information, news, and market sentiment.
 
 <a href="https://glama.ai/mcp/servers/0wues5td08"><img width="380" height="200" src="https://glama.ai/mcp/servers/0wues5td08/badge" alt="AlphaVantage-MCP MCP server" /></a>
 
 # Features
 
-- Real-time stock quotes with price, volume, and change data
+## Market Data & Trading
+- Real-time stock quotes with price, volume, and change data (Alpha Vantage + Yahoo Finance)
 - Detailed company information including sector, industry, and market cap
 - Real-time cryptocurrency exchange rates with bid/ask prices
 - Daily, weekly, and monthly cryptocurrency time series data
 - Historical options chain data with advanced filtering and sorting
+
+## Fundamental Analysis
+- Company fundamentals from EODHD (P/E ratios, EPS, revenue, etc.)
+- Insider trading transactions and analysis
+- Financial history and key metrics
+- Company profiles and business descriptions
+
+## News & Market Intelligence
+- Company-specific news from FinHub
+- General market news across multiple categories
+- Real-time news sentiment analysis
+- Multiple news source integration
+
+## Social Media Sentiment
+- Twitter/X sentiment analysis for stock mentions
+- Reddit sentiment from popular finance subreddits
+- Social media trend analysis and scoring
+- Community discussion tracking
+
+## Technical Features
 - Built-in error handling and rate limit management
+- Multi-API fallback support
+- Comprehensive data formatting
+- Environment-based configuration
 
 ## Installation
 
@@ -110,7 +134,9 @@ with inspector
 
 ## Available Tools
 
-The server implements eight tools:
+The server implements fifteen tools across multiple financial data providers:
+
+### Alpha Vantage Tools (Core)
 - `get-stock-quote`: Get the latest stock quote for a specific company
 - `get-company-info`: Get stock-related information for a specific company
 - `get-crypto-exchange-rate`: Get current cryptocurrency exchange rates
@@ -119,6 +145,21 @@ The server implements eight tools:
 - `get-crypto-daily`: Get daily time series data for a cryptocurrency
 - `get-crypto-weekly`: Get weekly time series data for a cryptocurrency
 - `get-crypto-monthly`: Get monthly time series data for a cryptocurrency
+
+### Yahoo Finance Tools
+- `get-yahoo-quote`: Get stock quote from Yahoo Finance with additional metadata
+
+### EODHD Tools
+- `get-eodhd-fundamentals`: Get comprehensive fundamental analysis data
+- `get-insider-transactions`: Get insider trading transaction history
+
+### FinHub Tools
+- `get-company-news`: Get company-specific financial news
+- `get-market-news`: Get general market news across categories
+
+### Social Media Tools
+- `get-reddit-sentiment`: Get Reddit sentiment analysis from finance subreddits
+- `get-twitter-sentiment`: Get Twitter sentiment analysis for stock mentions
 
 ### get-stock-quote
 
@@ -421,6 +462,123 @@ Volume: 42360395.75443056
 ---
 ```
 
+### get-yahoo-quote
+
+**Input Schema:**
+```json
+{
+    "symbol": {
+        "type": "string",
+        "description": "Stock symbol (e.g., AAPL, MSFT)"
+    }
+}
+```
+
+**Example Response:**
+```
+Yahoo Finance Data:
+Symbol: AAPL
+Price: $198.50
+Previous Close: $196.00
+Volume: 58942301
+Market Cap: 3000000000000
+Currency: USD
+---
+```
+
+### get-eodhd-fundamentals
+
+**Input Schema:**
+```json
+{
+    "symbol": {
+        "type": "string",
+        "description": "Stock symbol (e.g., AAPL.US, MSFT.US)"
+    }
+}
+```
+
+**Example Response:**
+```
+EODHD Fundamentals:
+Company: Apple Inc
+Sector: Technology
+Industry: Consumer Electronics
+Market Cap: $3000000000000
+P/E Ratio: 28.5
+EPS: $6.95
+Revenue: $394000000000
+---
+```
+
+### get-company-news
+
+**Input Schema:**
+```json
+{
+    "symbol": {
+        "type": "string",
+        "description": "Stock symbol (e.g., AAPL, MSFT)"
+    }
+}
+```
+
+**Example Response:**
+```
+FinHub Company News:
+Headline: Apple Reports Strong Q4 Earnings
+Summary: Apple Inc. reported quarterly earnings that beat analyst expectations...
+Source: Reuters
+URL: https://example.com/news
+Date: 2024-12-17 14:30:00
+---
+```
+
+### get-reddit-sentiment
+
+**Input Schema:**
+```json
+{
+    "symbol": {
+        "type": "string",
+        "description": "Stock symbol (e.g., AAPL, MSFT)"
+    }
+}
+```
+
+**Example Response:**
+```
+Reddit Sentiment Analysis:
+Total Posts Found: 25
+Average Post Score: 15.2
+Total Combined Score: 380
+
+Recent Popular Posts:
+Title: AAPL earnings discussion - what are your thoughts?
+Score: 45 | Comments: 23
+Subreddit: r/stocks
+---
+```
+
+## API Configuration
+
+The server supports multiple API providers. Copy `.env.sample` to `.env` and configure your API keys:
+
+```bash
+cp .env.sample .env
+# Edit .env with your API keys
+```
+
+### Required APIs
+- **Alpha Vantage**: Core functionality (REQUIRED)
+
+### Optional APIs
+- **EODHD**: Fundamental analysis and insider transactions
+- **FinHub**: Financial news and market data
+- **Twitter**: Social media sentiment analysis  
+- **Reddit**: Community sentiment (uses public API, no key required)
+- **Yahoo Finance**: Additional market data (no key required for basic endpoints)
+
 ## Error Handling
 
 The server includes comprehensive error handling for various scenarios:
@@ -451,3 +609,11 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## License
 This MCP server is licensed under the MIT License. 
 This means you are free to use, modify, and distribute the software, subject to the terms and conditions of the MIT License. For more details, please see the LICENSE file in the project repository.
+
+## Trading Bot Integration
+
+This MCP server provides financial data and analysis but does not directly execute trades. For information on integrating with trading platforms like Trading 212 or Alpaca, see [TRADING_INTEGRATION.md](TRADING_INTEGRATION.md).
+
+## Disclaimer
+
+This software is for informational purposes only and does not constitute investment advice. Always conduct your own research and consider the risks before making investment decisions.

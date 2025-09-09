@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "multi-source-finance": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/path/to/your/alpha-vantage-mcp",
+        "run",
+        "src/alpha_vantage_mcp/server.py"
+      ],
+      "env": {
+        "ALPHA_VANTAGE_API_KEY": "your_alpha_vantage_api_key_here",
+        "EODHD_API_KEY": "your_eodhd_api_key_here",
+        "FINHUB_API_KEY": "your_finhub_api_key_here",
+        "TWITTER_BEARER_TOKEN": "your_twitter_bearer_token_here"
+      }
+    }
+  }
+}
